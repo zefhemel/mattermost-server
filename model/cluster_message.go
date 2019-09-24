@@ -28,6 +28,13 @@ const (
 	CLUSTER_EVENT_INSTALL_PLUGIN                                    = "install_plugin"
 	CLUSTER_EVENT_REMOVE_PLUGIN                                     = "remove_plugin"
 
+	// Gossip Client and Server Methods
+	CLUSTER_GOSSIP_REQUEST_GET_LOGS            = "request_gossip_get_logs"
+	CLUSTER_GOSSIP_REQUEST_GET_CLUSTER_STATS   = "request_gossip_get_cluster_stats"
+	CLUSTER_GOSSIP_REQUEST_GET_PLUGIN_STATUSES = "request_gossip_get_plugin_statuses"
+	CLUSTER_GOSSIP_REQUEST_SAVE_CONFIG         = "request_gossip_save_config"
+	CLUSTER_GOSSIP_RESPONSE                    = "response_gossip_get_logs"
+
 	// SendTypes for ClusterMessage.
 	CLUSTER_SEND_BEST_EFFORT = "best_effort"
 	CLUSTER_SEND_RELIABLE    = "reliable"
