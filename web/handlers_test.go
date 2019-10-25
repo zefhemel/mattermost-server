@@ -6,6 +6,8 @@ package web
 import (
 	"net/http"
 	"net/http/httptest"
+	"net/url"
+	"strings"
 	"testing"
 
 	"github.com/mattermost/mattermost-server/app"
@@ -340,176 +342,272 @@ func TestHandlerServeInvalidToken(t *testing.T) {
 }
 
 func TestCheckCSRFToken(t *testing.T) {
-	t.Run("should allow a POST request with a valid CSRF token header", func(t *testing.T) {
-		th := Setup()
-		defer th.TearDown()
+	t.Run("should not be required", func(t *testing.T) {
+		t.Run("for GET requests", func(t *testing.T) {
+			th := Setup()
+			defer th.TearDown()
 
-		h := &Handler{
-			RequireSession: true,
-			TrustRequester: false,
-		}
+			h := &Handler{
+				RequireSession: true,
+				TrustRequester: false,
+			}
 
-		token := "token"
-		tokenLocation := app.TokenLocationCookie
+			token := "token"
+			tokenLocation := app.TokenLocationCookie
 
-		c := &Context{
-			App: th.App,
-		}
-		r, _ := http.NewRequest(http.MethodPost, "", nil)
-		r.Header.Set(model.HEADER_CSRF_TOKEN, token)
-		session := &model.Session{
-			Props: map[string]string{
-				"csrf": token,
-			},
-		}
+			c := &Context{
+				App: th.App,
+			}
+			r, _ := http.NewRequest(http.MethodGet, "", nil)
 
-		checked, passed := h.checkCSRFToken(c, r, token, tokenLocation, session)
-
-		assert.True(t, checked)
-		assert.True(t, passed)
-		assert.Nil(t, c.Err)
-	})
-
-	t.Run("should allow a POST request with an X-Requested-With header", func(t *testing.T) {
-		th := Setup()
-		defer th.TearDown()
-
-		h := &Handler{
-			RequireSession: true,
-			TrustRequester: false,
-		}
-
-		token := "token"
-		tokenLocation := app.TokenLocationCookie
-
-		c := &Context{
-			App: th.App,
-			Log: th.App.Log,
-		}
-		r, _ := http.NewRequest(http.MethodPost, "", nil)
-		r.Header.Set(model.HEADER_REQUESTED_WITH, model.HEADER_REQUESTED_WITH_XML)
-		session := &model.Session{
-			Props: map[string]string{
-				"csrf": token,
-			},
-		}
-
-		checked, passed := h.checkCSRFToken(c, r, token, tokenLocation, session)
-
-		assert.True(t, checked)
-		assert.True(t, passed)
-		assert.Nil(t, c.Err)
-	})
-
-	t.Run("should not allow a POST request with an X-Requested-With header with strict CSRF enforcement enabled", func(t *testing.T) {
-		th := Setup()
-		defer th.TearDown()
-
-		th.App.UpdateConfig(func(cfg *model.Config) {
-			*cfg.ServiceSettings.ExperimentalStrictCSRFEnforcement = true
+			h.checkCSRFToken(c, r, token, tokenLocation, nil)
+			assert.Nil(t, c.Err)
 		})
 
-		h := &Handler{
-			RequireSession: true,
-			TrustRequester: false,
-		}
+		t.Run("when the requester is trusted", func(t *testing.T) {
+			th := Setup()
+			defer th.TearDown()
 
-		token := "token"
-		tokenLocation := app.TokenLocationCookie
+			h := &Handler{
+				RequireSession: true,
+				TrustRequester: true,
+			}
 
-		c := &Context{
-			App: th.App,
-			Log: th.App.Log,
-		}
-		r, _ := http.NewRequest(http.MethodPost, "", nil)
-		r.Header.Set(model.HEADER_REQUESTED_WITH, model.HEADER_REQUESTED_WITH_XML)
-		session := &model.Session{
-			Props: map[string]string{
-				"csrf": token,
-			},
-		}
+			token := "token"
+			tokenLocation := app.TokenLocationCookie
 
-		checked, passed := h.checkCSRFToken(c, r, token, tokenLocation, session)
+			c := &Context{
+				App: th.App,
+			}
+			r, _ := http.NewRequest(http.MethodPost, "", nil)
 
-		assert.True(t, checked)
-		assert.False(t, passed)
-		assert.NotNil(t, c.Err)
+			h.checkCSRFToken(c, r, token, tokenLocation, nil)
+			assert.Nil(t, c.Err)
+		})
+
+		t.Run("when a session is not required", func(t *testing.T) {
+			th := Setup()
+			defer th.TearDown()
+
+			h := &Handler{
+				RequireSession: false,
+				TrustRequester: false,
+			}
+
+			token := "token"
+			tokenLocation := app.TokenLocationCookie
+
+			c := &Context{
+				App: th.App,
+			}
+			r, _ := http.NewRequest(http.MethodPost, "", nil)
+
+			h.checkCSRFToken(c, r, token, tokenLocation, nil)
+			assert.Nil(t, c.Err)
+		})
+
+		t.Run("when auth token is passed in the header", func(t *testing.T) {
+			th := Setup()
+			defer th.TearDown()
+
+			h := &Handler{
+				RequireSession: true,
+				TrustRequester: false,
+			}
+
+			token := "token"
+			tokenLocation := app.TokenLocationHeader
+
+			c := &Context{
+				App: th.App,
+			}
+			r, _ := http.NewRequest(http.MethodPost, "", nil)
+
+			h.checkCSRFToken(c, r, token, tokenLocation, nil)
+			assert.Nil(t, c.Err)
+		})
 	})
 
-	t.Run("should not allow a POST request without either header", func(t *testing.T) {
-		th := Setup()
-		defer th.TearDown()
+	t.Run("should allow a POST request", func(t *testing.T) {
+		t.Run("with a valid CSRF token header", func(t *testing.T) {
+			th := Setup()
+			defer th.TearDown()
 
-		h := &Handler{
-			RequireSession: true,
-			TrustRequester: false,
-		}
+			h := &Handler{
+				RequireSession: true,
+				TrustRequester: false,
+			}
 
-		token := "token"
-		tokenLocation := app.TokenLocationCookie
+			token := "token"
+			tokenLocation := app.TokenLocationCookie
 
-		c := &Context{
-			App: th.App,
-		}
-		r, _ := http.NewRequest(http.MethodPost, "", nil)
-		session := &model.Session{
-			Props: map[string]string{
-				"csrf": token,
-			},
-		}
+			c := &Context{
+				App: th.App,
+			}
+			r, _ := http.NewRequest(http.MethodPost, "", nil)
+			r.Header.Set(model.HEADER_CSRF_TOKEN, token)
+			session := &model.Session{
+				Props: map[string]string{
+					"csrf": token,
+				},
+			}
 
-		checked, passed := h.checkCSRFToken(c, r, token, tokenLocation, session)
+			h.checkCSRFToken(c, r, token, tokenLocation, session)
+			assert.Nil(t, c.Err)
+		})
 
-		assert.True(t, checked)
-		assert.False(t, passed)
-		assert.NotNil(t, c.Err)
+		t.Run("with an X-Requested-With header", func(t *testing.T) {
+			th := Setup()
+			defer th.TearDown()
+
+			h := &Handler{
+				RequireSession: true,
+				TrustRequester: false,
+			}
+
+			token := "token"
+			tokenLocation := app.TokenLocationCookie
+
+			c := &Context{
+				App: th.App,
+				Log: th.App.Log,
+			}
+			r, _ := http.NewRequest(http.MethodPost, "", nil)
+			r.Header.Set(model.HEADER_REQUESTED_WITH, model.HEADER_REQUESTED_WITH_XML)
+			session := &model.Session{
+				Props: map[string]string{
+					"csrf": token,
+				},
+			}
+
+			h.checkCSRFToken(c, r, token, tokenLocation, session)
+			assert.Nil(t, c.Err)
+		})
+
+		t.Run("with a form-based CSRF token, when permitted by the handler", func(t *testing.T) {
+			th := Setup()
+			defer th.TearDown()
+
+			h := &Handler{
+				RequireSession:      true,
+				TrustRequester:      false,
+				AllowFormCSRFTokens: true,
+			}
+
+			token := "token"
+			tokenLocation := app.TokenLocationCookie
+
+			c := &Context{
+				App: th.App,
+				Log: th.App.Log,
+			}
+			form := url.Values{}
+			form.Add("csrf", token)
+			r, _ := http.NewRequest(http.MethodPost, "", strings.NewReader(form.Encode()))
+			r.Header.Add("Content-Type", "application/x-www-form-urlencoded")
+			session := &model.Session{
+				Props: map[string]string{
+					"csrf": token,
+				},
+			}
+
+			h.checkCSRFToken(c, r, token, tokenLocation, session)
+			assert.Nil(t, c.Err)
+		})
 	})
 
-	t.Run("should not check GET requests", func(t *testing.T) {
-		th := Setup()
-		defer th.TearDown()
+	t.Run("should not allow a POST request", func(t *testing.T) {
+		t.Run("with a form-based CSRF token when the handler does not support same", func(t *testing.T) {
+			th := Setup()
+			defer th.TearDown()
 
-		h := &Handler{
-			RequireSession: true,
-			TrustRequester: false,
-		}
+			h := &Handler{
+				RequireSession:      true,
+				TrustRequester:      false,
+				AllowFormCSRFTokens: false,
+			}
 
-		token := "token"
-		tokenLocation := app.TokenLocationCookie
+			token := "token"
+			tokenLocation := app.TokenLocationCookie
 
-		c := &Context{
-			App: th.App,
-		}
-		r, _ := http.NewRequest(http.MethodGet, "", nil)
+			c := &Context{
+				App: th.App,
+				Log: th.App.Log,
+			}
+			r, _ := http.NewRequest(http.MethodPost, "", nil)
+			form := url.Values{}
+			form.Add("csrf", token)
+			r.PostForm = form
+			r.Header.Add("Content-Type", "application/x-www-form-urlencoded")
+			session := &model.Session{
+				Props: map[string]string{
+					"csrf": token,
+				},
+			}
 
-		checked, passed := h.checkCSRFToken(c, r, token, tokenLocation, nil)
+			h.checkCSRFToken(c, r, token, tokenLocation, session)
+			require.NotNil(t, c.Err)
+			assert.Equal(t, "api.context.session_expired.app_error", c.Err.Id)
+		})
 
-		assert.False(t, checked)
-		assert.False(t, passed)
-		assert.Nil(t, c.Err)
-	})
+		t.Run("with an X-Requested-With header with strict CSRF enforcement enabled", func(t *testing.T) {
+			th := Setup()
+			defer th.TearDown()
 
-	t.Run("should not check a request passing the auth token in a header", func(t *testing.T) {
-		th := Setup()
-		defer th.TearDown()
+			th.App.UpdateConfig(func(cfg *model.Config) {
+				*cfg.ServiceSettings.ExperimentalStrictCSRFEnforcement = true
+			})
 
-		h := &Handler{
-			RequireSession: true,
-			TrustRequester: false,
-		}
+			h := &Handler{
+				RequireSession: true,
+				TrustRequester: false,
+			}
 
-		token := "token"
-		tokenLocation := app.TokenLocationHeader
+			token := "token"
+			tokenLocation := app.TokenLocationCookie
 
-		c := &Context{
-			App: th.App,
-		}
-		r, _ := http.NewRequest(http.MethodPost, "", nil)
+			c := &Context{
+				App: th.App,
+				Log: th.App.Log,
+			}
+			r, _ := http.NewRequest(http.MethodPost, "", nil)
+			r.Header.Set(model.HEADER_REQUESTED_WITH, model.HEADER_REQUESTED_WITH_XML)
+			session := &model.Session{
+				Props: map[string]string{
+					"csrf": token,
+				},
+			}
 
-		checked, passed := h.checkCSRFToken(c, r, token, tokenLocation, nil)
+			h.checkCSRFToken(c, r, token, tokenLocation, session)
+			require.NotNil(t, c.Err)
+			assert.Equal(t, "api.context.session_expired.app_error", c.Err.Id)
+		})
 
-		assert.False(t, checked)
-		assert.False(t, passed)
-		assert.Nil(t, c.Err)
+		t.Run("without either header", func(t *testing.T) {
+			th := Setup()
+			defer th.TearDown()
+
+			h := &Handler{
+				RequireSession: true,
+				TrustRequester: false,
+			}
+
+			token := "token"
+			tokenLocation := app.TokenLocationCookie
+
+			c := &Context{
+				App: th.App,
+			}
+			r, _ := http.NewRequest(http.MethodPost, "", nil)
+			session := &model.Session{
+				Props: map[string]string{
+					"csrf": token,
+				},
+			}
+
+			h.checkCSRFToken(c, r, token, tokenLocation, session)
+			require.NotNil(t, c.Err)
+			assert.Equal(t, "api.context.session_expired.app_error", c.Err.Id)
+		})
 	})
 }
