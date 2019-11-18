@@ -16,6 +16,7 @@ import (
 	"github.com/mattermost/mattermost-server/mlog"
 	"github.com/mattermost/mattermost-server/model"
 	"github.com/mattermost/mattermost-server/utils"
+	"github.com/mattermost/mattermost-server/web"
 	"github.com/stretchr/testify/require"
 )
 
@@ -67,6 +68,7 @@ func setupTestHelper(enterprise bool, tb testing.TB) *TestHelper {
 	}
 
 	th.App.UpdateConfig(func(cfg *model.Config) { *cfg.ServiceSettings.ListenAddress = prevListenAddress })
+	web.New(th.Server, th.Server.AppOptions, th.App.Srv.Router)
 
 	th.App.Srv.Store.MarkSystemRanUnitTests()
 
