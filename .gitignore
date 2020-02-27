@@ -20,7 +20,6 @@ config/config.json
 /plugins
 
 # Enteprise imports file
-imports/imports.go
 
 # Build Targets
 .prebuild
