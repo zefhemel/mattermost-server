@@ -230,6 +230,21 @@ func (b *S3FileBackend) RemoveFile(path string) *model.AppError {
 	return nil
 }
 
+func (b *S3FileBackend) MD5(path string) (string, *model.AppError) {
+	s3Clnt, err := b.s3New()
+	if err != nil {
+		return "", model.NewAppError("RemoveFile", "utils.file.md5.s3.app_error", nil, err.Error(), http.StatusInternalServerError)
+	}
+
+	path = filepath.Join(b.pathPrefix, path)
+	info, err := s3Clnt.GetObjectACL(b.bucket, path)
+	if err != nil {
+		return "", model.NewAppError("RemoveFile", "utils.file.md5.s3.app_error", nil, err.Error(), http.StatusInternalServerError)
+	}
+
+	return info.ETag, nil
+}
+
 func getPathsFromObjectInfos(in <-chan s3.ObjectInfo) <-chan string {
 	out := make(chan string, 1)
 

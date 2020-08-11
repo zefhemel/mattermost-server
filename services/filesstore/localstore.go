@@ -5,6 +5,8 @@ package filesstore
 
 import (
 	"bytes"
+	"crypto/md5"
+	"encoding/hex"
 	"io"
 	"io/ioutil"
 	"net/http"
@@ -108,6 +110,23 @@ func (b *LocalFileBackend) RemoveFile(path string) *model.AppError {
 		return model.NewAppError("RemoveFile", "utils.file.remove_file.local.app_error", nil, err.Error(), http.StatusInternalServerError)
 	}
 	return nil
+}
+
+func (b *LocalFileBackend) MD5(path string) (string, *model.AppError) {
+	file, err := os.Open(filepath.Join(b.directory, path))
+	if err != nil {
+		return "", model.NewAppError("RemoveFile", "utils.file.md5.local.app_error", nil, err.Error(), http.StatusInternalServerError)
+	}
+
+	defer file.Close()
+	hash := md5.New()
+
+	if _, err := io.Copy(hash, file); err != nil {
+		return "", model.NewAppError("RemoveFile", "utils.file.md5.local.app_error", nil, err.Error(), http.StatusInternalServerError)
+	}
+
+	hashInBytes := hash.Sum(nil)[:16]
+	return hex.EncodeToString(hashInBytes), nil
 }
 
 func (b *LocalFileBackend) ListDirectory(path string) (*[]string, *model.AppError) {

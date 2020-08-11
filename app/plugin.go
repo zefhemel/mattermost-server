@@ -4,6 +4,7 @@
 package app
 
 import (
+	"bytes"
 	"encoding/base64"
 	"fmt"
 	"io"
@@ -235,12 +236,7 @@ func (a *App) SyncPlugins() *model.AppError {
 				mlog.Warn("Skipping sync for unmanaged plugin", mlog.String("plugin_id", pluginID))
 			} else if err != nil {
 				mlog.Error("Skipping sync for plugin after failure to check if managed", mlog.String("plugin_id", pluginID), mlog.Err(err))
-			} else {
-				mlog.Debug("Removing local installation of managed plugin before sync", mlog.String("plugin_id", pluginID))
-				if err := a.removePluginLocally(pluginID); err != nil {
-					mlog.Error("Failed to remove local installation of managed plugin before sync", mlog.String("plugin_id", pluginID), mlog.Err(err))
-				}
-			}
+			} // Not so sure about the consequences of moving this block
 		}(plugin.Manifest.Id)
 	}
 	wg.Wait()
@@ -255,6 +251,56 @@ func (a *App) SyncPlugins() *model.AppError {
 		wg.Add(1)
 		go func(plugin *pluginSignaturePath) {
 			defer wg.Done()
+
+			// Check if we already have the latest that matches the file store
+			cached, outerErr := func() (bool, error) {
+				man, err := a.GetPluginsEnvironment().GetManifest(plugin.pluginId)
+				if err != nil || man == nil {
+					return false, nil
+				}
+
+				// Read .filestore file to get stored hash
+				f, err := os.Open(filepath.Join(*a.Config().PluginSettings.Directory, plugin.pluginId, managedPluginFileName))
+				if err != nil {
+					return false, nil
+				}
+				b, err := ioutil.ReadAll(f)
+				if err != nil {
+					return false, nil
+				}
+
+				// Get remote file's hash
+				fb, appErr := a.FileBackend()
+				if appErr != nil {
+					return false, appErr
+				}
+				hash, appErr := fb.MD5(plugin.path)
+				if appErr != nil {
+					return false, appErr
+				}
+
+				// Check if cache is up-to-date
+				if bytes.Equal(b, []byte(hash)) {
+					return true, nil
+				}
+
+				return false, nil
+			}()
+
+			if outerErr != nil {
+				mlog.Error("Error comparing local plugin hash with remote hash", mlog.Err(outerErr))
+				return
+			}
+			if cached {
+				mlog.Info("Local plugin hash is equal to remote hash. No sync needed.", mlog.String("bundle", plugin.path))
+				return
+			}
+
+			mlog.Debug("Removing local installation of managed plugin before sync", mlog.String("plugin_id", plugin.pluginId))
+			if err := a.removePluginLocally(plugin.pluginId); err != nil {
+				mlog.Error("Failed to remove local installation of managed plugin before sync", mlog.String("plugin_id", plugin.pluginId), mlog.Err(err))
+			}
+
 			reader, appErr := a.FileReader(plugin.path)
 			if appErr != nil {
 				mlog.Error("Failed to open plugin bundle from file store.", mlog.String("bundle", plugin.path), mlog.Err(appErr))
@@ -853,8 +899,13 @@ func (a *App) processPrepackagedPlugin(pluginPath *pluginSignaturePath) (*plugin
 		return plugin, nil
 	}
 
+	hash, err := getHash(fileReader)
+	if err != nil {
+		return nil, errors.Wrapf(err, "Failed to get hash for prepackaged plugin %s", pluginPath.path)
+	}
+
 	mlog.Debug("Installing prepackaged plugin", mlog.String("path", pluginPath.path))
-	if _, err := a.installExtractedPlugin(plugin.Manifest, pluginDir, installPluginLocallyOnlyIfNewOrUpgrade); err != nil {
+	if _, err := a.installExtractedPlugin(plugin.Manifest, pluginDir, hash, installPluginLocallyOnlyIfNewOrUpgrade); err != nil {
 		return nil, errors.Wrapf(err, "Failed to install extracted prepackaged plugin %s", pluginPath.path)
 	}
 

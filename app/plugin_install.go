@@ -38,6 +38,8 @@ package app
 
 import (
 	"bytes"
+	"crypto/md5"
+	"encoding/hex"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -261,12 +263,29 @@ func (a *App) installPluginLocally(pluginFile, signature io.ReadSeeker, installa
 		return nil, appErr
 	}
 
-	manifest, appErr = a.installExtractedPlugin(manifest, pluginDir, installationStrategy)
+	hash, appErr := getHash(pluginFile)
+	if appErr != nil {
+		return nil, appErr
+	}
+
+	manifest, appErr = a.installExtractedPlugin(manifest, pluginDir, hash, installationStrategy)
 	if appErr != nil {
 		return nil, appErr
 	}
 
 	return manifest, nil
+}
+
+func getHash(file io.ReadSeeker) (string, *model.AppError) {
+	file.Seek(0, 0)
+	hash := md5.New()
+
+	if _, err := io.Copy(hash, file); err != nil {
+		return "", model.NewAppError("RemoveFile", "utils.file.md5.local.app_error", nil, err.Error(), http.StatusInternalServerError)
+	}
+
+	hashInBytes := hash.Sum(nil)[:16]
+	return hex.EncodeToString(hashInBytes), nil
 }
 
 func extractPlugin(pluginFile io.ReadSeeker, extractDir string) (*model.Manifest, string, *model.AppError) {
@@ -296,7 +315,7 @@ func extractPlugin(pluginFile io.ReadSeeker, extractDir string) (*model.Manifest
 	return manifest, extractDir, nil
 }
 
-func (a *App) installExtractedPlugin(manifest *model.Manifest, fromPluginDir string, installationStrategy pluginInstallationStrategy) (*model.Manifest, *model.AppError) {
+func (a *App) installExtractedPlugin(manifest *model.Manifest, fromPluginDir, hash string, installationStrategy pluginInstallationStrategy) (*model.Manifest, *model.AppError) {
 	pluginsEnvironment := a.GetPluginsEnvironment()
 	if pluginsEnvironment == nil {
 		return nil, model.NewAppError("installExtractedPlugin", "app.plugin.disabled.app_error", nil, "", http.StatusNotImplemented)
@@ -360,6 +379,9 @@ func (a *App) installExtractedPlugin(manifest *model.Manifest, fromPluginDir str
 	if err != nil {
 		return nil, model.NewAppError("installExtractedPlugin", "app.plugin.flag_managed.app_error", nil, err.Error(), http.StatusInternalServerError)
 	}
+
+	// Write hash to .filestore file
+	f.WriteString(hash)
 	f.Close()
 
 	if manifest.HasWebapp() {

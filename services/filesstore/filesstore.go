@@ -25,6 +25,7 @@ type FileBackend interface {
 	MoveFile(oldPath, newPath string) *model.AppError
 	WriteFile(fr io.Reader, path string) (int64, *model.AppError)
 	RemoveFile(path string) *model.AppError
+	MD5(path string) (string, *model.AppError)
 
 	ListDirectory(path string) (*[]string, *model.AppError)
 	RemoveDirectory(path string) *model.AppError
