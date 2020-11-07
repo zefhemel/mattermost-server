@@ -582,7 +582,11 @@ func (c *Client4) doApiRequestReader(method, url string, data io.Reader, etag st
 
 	if c.HttpHeader != nil && len(c.HttpHeader) > 0 {
 		for k, v := range c.HttpHeader {
-			rq.Header.Set(k, v)
+			if k == "Host" {
+				rq.Host = v
+			} else {
+				rq.Header.Set(k, v)
+			}
 		}
 	}
 
