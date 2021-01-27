@@ -46,7 +46,7 @@ func main() {
 	}
 
 	var dockerCompose DockerCompose
-	dockerCompose.Version = "3.5"
+	dockerCompose.Version = "3.7"
 	dockerCompose.Services = map[string]*Container{}
 	dockerCompose.Services["start_dependencies"] = &Container{
 		Image:     "mattermost/mattermost-wait-for-dep:latest",
