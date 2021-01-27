@@ -9,7 +9,7 @@ executors:
     working_directory: ~/mattermost/
     resource_class: xlarge
     machine:
-      image: "ubuntu-1604:201903-01"
+      image: "cimg/base:2020.01"
     environment:
       COMPOSE_PROJECT_NAME: "circleci"
 jobs:
@@ -211,6 +211,8 @@ jobs:
       - run:
           name: Run Docker compose
           command: |
+            docker version
+            docker-compose version
             cd mattermost-server/build
             docker-compose --no-ansi run --rm start_dependencies
             cat ../tests/test-data.ldif | docker-compose --no-ansi exec -T openldap bash -c 'ldapadd -x -D "cn=admin,dc=mm,dc=test,dc=com" -w mostest';
