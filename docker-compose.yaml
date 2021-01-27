@@ -1,4 +1,4 @@
-version: '3.9'
+version: '3.5'
 services:
   mysql:
     container_name: mattermost-mysql
