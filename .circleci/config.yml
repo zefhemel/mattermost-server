@@ -9,7 +9,7 @@ executors:
     working_directory: ~/mattermost/
     resource_class: xlarge
     machine:
-      image: "cimg/base:2020.01"
+      image: "ubuntu-2004:202010-01"
     environment:
       COMPOSE_PROJECT_NAME: "circleci"
 jobs:
