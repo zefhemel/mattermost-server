@@ -123,9 +123,9 @@ type TeamStore interface {
 	InvalidateAllTeamIdsForUser(userId string)
 	ClearCaches()
 
-	// UpdateMembersRole sets all of the given team members to admins and all of the other members of the team to
-	// non-admin members.
-	UpdateMembersRole(teamID string, userIDs []string) error
+	// UpdateMembersRole updates all the members of teamID in the userIDs string array to be admins (unless they're guests)
+	// and sets all other users as not being admin. It returns the count of affected rows.
+	UpdateMembersRole(teamID string, userIDs []string) (int64, error)
 
 	// GroupSyncedTeamCount returns the count of non-deleted group-constrained teams.
 	GroupSyncedTeamCount() (int64, error)
@@ -232,9 +232,9 @@ type ChannelStore interface {
 	GetChannelsBatchForIndexing(startTime, endTime int64, limit int) ([]*model.Channel, error)
 	UserBelongsToChannels(userId string, channelIds []string) (bool, error)
 
-	// UpdateMembersRole sets all of the given team members to admins and all of the other members of the team to
-	// non-admin members.
-	UpdateMembersRole(channelID string, userIDs []string) error
+	// UpdateMembersRole updates all the members of channelID in the userIDs string array to be admins (unless they're guests)
+	// and sets all other users as not being admin. It returns the count of affected rows.
+	UpdateMembersRole(channelID string, userIDs []string) (int64, error)
 
 	// GroupSyncedChannelCount returns the count of non-deleted group-constrained channels.
 	GroupSyncedChannelCount() (int64, error)

@@ -1568,23 +1568,22 @@ func (s SqlTeamStore) UserBelongsToTeams(userId string, teamIds []string) (bool,
 	return c > 0, nil
 }
 
-// UpdateMembersRole updates all the members of teamID in the userIds string array to be admins and sets all other
-// users as not being admin.
-func (s SqlTeamStore) UpdateMembersRole(teamID string, userIDs []string) error {
+func (s SqlTeamStore) UpdateMembersRole(teamID string, userIDs []string) (int64, error) {
 	query, args, err := s.getQueryBuilder().
 		Update("TeamMembers").
 		Set("SchemeAdmin", sq.Case().When(sq.Eq{"UserId": userIDs}, "true").Else("false")).
 		Where(sq.Eq{"TeamId": teamID, "DeleteAt": 0}).
 		Where(sq.Or{sq.Eq{"SchemeGuest": false}, sq.Expr("SchemeGuest IS NULL")}).ToSql()
 	if err != nil {
-		return errors.Wrap(err, "team_tosql")
+		return 0, errors.Wrap(err, "team_tosql")
 	}
 
-	if _, err = s.GetMaster().Exec(query, args...); err != nil {
-		return errors.Wrap(err, "failed to update TeamMembers")
+	var result sql.Result
+	if result, err = s.GetMaster().Exec(query, args...); err != nil {
+		return 0, errors.Wrap(err, "failed to update TeamMembers")
 	}
 
-	return nil
+	return result.RowsAffected()
 }
 
 func applyTeamMemberViewRestrictionsFilter(query sq.SelectBuilder, restrictions *model.ViewUsersRestrictions) sq.SelectBuilder {

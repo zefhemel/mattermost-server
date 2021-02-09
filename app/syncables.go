@@ -189,13 +189,12 @@ func (a *App) deleteGroupConstrainedChannelMemberships(channelID *string) error 
 	return nil
 }
 
-// SyncSyncableRoles updates the SchemeAdmin field value of the given syncable's members based on the configuration of
-// the member's group memberships and the configuration of those groups to the syncable. This method should only
-// be invoked on group-synced (aka group-constrained) syncables.
-func (a *App) SyncSyncableRoles(syncableID string, syncableType model.GroupSyncableType) *model.AppError {
+// SyncSyncableRoles updates membership role types of the given syncable (team or channel). This may update team/channel member roles from admin to
+// member (and vice versa). The returned boolean is true if any roles were update.
+func (a *App) SyncSyncableRoles(syncableID string, syncableType model.GroupSyncableType) (bool, *model.AppError) {
 	permittedAdmins, err := a.Srv().Store.Group().PermittedSyncableAdmins(syncableID, syncableType)
 	if err != nil {
-		return model.NewAppError("SyncSyncableRoles", "app.select_error", nil, err.Error(), http.StatusInternalServerError)
+		return false, model.NewAppError("SyncSyncableRoles", "app.select_error", nil, err.Error(), http.StatusInternalServerError)
 	}
 
 	a.Log().Info(
@@ -206,19 +205,21 @@ func (a *App) SyncSyncableRoles(syncableID string, syncableType model.GroupSynca
 
 	switch syncableType {
 	case model.GroupSyncableTypeTeam:
-		nErr := a.Srv().Store.Team().UpdateMembersRole(syncableID, permittedAdmins)
+		rowCount, nErr := a.Srv().Store.Team().UpdateMembersRole(syncableID, permittedAdmins)
+		rowsChanged := rowCount > 0
 		if nErr != nil {
-			return model.NewAppError("App.SyncSyncableRoles", "app.update_error", nil, nErr.Error(), http.StatusInternalServerError)
+			return rowsChanged, model.NewAppError("App.SyncSyncableRoles", "app.update_error", nil, nErr.Error(), http.StatusInternalServerError)
 		}
-		return nil
+		return rowsChanged, nil
 	case model.GroupSyncableTypeChannel:
-		nErr := a.Srv().Store.Channel().UpdateMembersRole(syncableID, permittedAdmins)
+		rowCount, nErr := a.Srv().Store.Channel().UpdateMembersRole(syncableID, permittedAdmins)
+		rowsChanged := rowCount > 0
 		if nErr != nil {
-			return model.NewAppError("App.SyncSyncableRoles", "app.update_error", nil, nErr.Error(), http.StatusInternalServerError)
+			return rowsChanged, model.NewAppError("App.SyncSyncableRoles", "app.update_error", nil, nErr.Error(), http.StatusInternalServerError)
 		}
-		return nil
+		return rowsChanged, nil
 	default:
-		return model.NewAppError("App.SyncSyncableRoles", "groups.unsupported_syncable_type", map[string]interface{}{"Value": syncableType}, "", http.StatusInternalServerError)
+		return false, model.NewAppError("App.SyncSyncableRoles", "groups.unsupported_syncable_type", map[string]interface{}{"Value": syncableType}, "", http.StatusInternalServerError)
 	}
 }
 
