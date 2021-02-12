@@ -93,7 +93,7 @@ func (a *App) ServePluginPublicRequest(w http.ResponseWriter, r *http.Request) {
 
 	a.srv.PluginsLock.Lock()
 
-	// Check if someone has nullify the pluginsEnv
+	// Check if someone has nullify the pluginsEnv in the meantime
 	if pluginsEnv == nil {
 		http.NotFound(w, r)
 		a.srv.PluginsLock.Unlock()
